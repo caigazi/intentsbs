@@ -30,7 +30,7 @@ class TeacherBudget:
     new_std_alpha: float = 0.34
     new_std_beta: float = 0.44
     tie_fraction: float = 0.01
-    planning_integration_substeps: int = 4
+    planning_integration_substeps: int = 32
     candidate_backend: str = "jax_x64"
 
 
@@ -87,10 +87,14 @@ class ComponentCEMTeacher:
     """
 
     def __init__(self, protocol: SyncEventProtocol,
-                 budget: TeacherBudget | None = None, seed: int = 0):
+                 budget: TeacherBudget | None = None, seed: int = 0,
+                 *, audit_exact_candidates: bool = False):
         self.protocol = protocol
         self.budget = budget or TeacherBudget()
         self.rng = np.random.default_rng(seed)
+        self.audit_exact_candidates = bool(audit_exact_candidates)
+        self.search_audit: list[dict] = []
+        self.audit_exact_rollouts = 0
         self.caches: list[ComponentCache] = []
         self.calls = 0
         self.strong_searches = 0
@@ -306,7 +310,7 @@ class ComponentCEMTeacher:
         best = working.copy()
         best_cost = float("inf")
         mean, std = cache.mean.copy(), cache.std.copy()
-        for _ in range(iterations):
+        for iteration in range(iterations):
             latent = self.rng.normal(
                 mean, std, size=(samples, len(ids), 2))
             latent[..., 0] = np.clip(latent[..., 0], -1.0, 1.0)
@@ -370,6 +374,49 @@ class ComponentCEMTeacher:
                 raise ValueError(
                     f"unknown candidate backend: "
                     f"{self.budget.candidate_backend}")
+            if self.audit_exact_candidates:
+                exact_costs = np.asarray([
+                    self._rollout_cost(
+                        runtime, goals, gain, cfg, candidate, active_ids,
+                        release_ids, ids,
+                        integration_substeps=self.protocol.integration_substeps)
+                    for candidate in candidates
+                ])
+                self.audit_exact_rollouts += samples
+                approximate_order = np.argsort(costs, kind="stable")
+                exact_order = np.argsort(exact_costs, kind="stable")
+                approximate_ranks = np.empty(samples, dtype=int)
+                exact_ranks = np.empty(samples, dtype=int)
+                approximate_ranks[approximate_order] = np.arange(samples)
+                exact_ranks[exact_order] = np.arange(samples)
+                if (np.std(approximate_ranks) > 0.0
+                        and np.std(exact_ranks) > 0.0):
+                    rank_correlation = float(np.corrcoef(
+                        approximate_ranks, exact_ranks)[0, 1])
+                else:
+                    rank_correlation = None
+                approximate_best = int(approximate_order[0])
+                exact_best = int(exact_order[0])
+                exact_best_cost = float(exact_costs[exact_best])
+                self.search_audit.append({
+                    "members": list(cache.members),
+                    "branch_sign": int(np.sign(sign)),
+                    "iteration": iteration,
+                    "strong": bool(strong),
+                    "approximate_costs": costs.tolist(),
+                    "exact_costs": exact_costs.tolist(),
+                    "member_parameters": candidates[:, ids].tolist(),
+                    "rank_correlation": rank_correlation,
+                    "approximate_best_index": approximate_best,
+                    "exact_best_index": exact_best,
+                    "exact_rank_of_approximate_best": int(
+                        exact_ranks[approximate_best]),
+                    "approximate_rank_of_exact_best": int(
+                        approximate_ranks[exact_best]),
+                    "approximate_best_exact_regret": float(
+                        (exact_costs[approximate_best] - exact_best_cost)
+                        / max(abs(exact_best_cost), 1.0)),
+                })
             self.candidate_rollouts += samples
             order = np.argsort(costs)
             if costs[order[0]] < best_cost:
@@ -495,6 +542,7 @@ class ComponentCEMTeacher:
             "candidate_rollouts": self.candidate_rollouts,
             "approximate_rollouts": self.approximate_rollouts,
             "exact_validation_rollouts": self.exact_validation_rollouts,
+            "audit_exact_rollouts": self.audit_exact_rollouts,
             "incumbent_and_branch_validation_rollouts": (
                 self.objective_rollouts - self.candidate_rollouts),
             "simulated_control_steps": self.simulated_control_steps,

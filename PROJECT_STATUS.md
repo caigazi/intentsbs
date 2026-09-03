@@ -62,6 +62,25 @@ runs, but the first N=5 fixed-snapshot audit showed that it does not yet have
 stable low regret across seeds. Authoritative status must be earned by
 convergence and exact-reranking evidence rather than a budget label.
 
+## Candidate-ranking fidelity result
+
+On the saved 360-candidate N=5 population audit, the 4-substep JAX surrogate
+had mean rank correlation 0.469 and selected the exact population winner in
+only 10/30 populations. At 32 substeps, rank correlation was 1.0, all 30/30
+population winners matched the NumPy exact reference, median winner regret was
+zero, and V100 steady time for all 360 candidates was 0.033 s versus 0.0155 s
+at four substeps. Formal strong-Teacher candidate ranking therefore uses 32
+substeps; four-substep ranking is rejected.
+
+Repeating the same five-seed `12 x 3 x 40` search with 32-substep ranking
+eliminated ranking loss completely: all 30/30 population winners matched exact
+evaluation, and every seed selected its own best sampled candidate. Exact
+selected costs were 4634.63, 5853.64, 4606.99, 4623.58, and 4231.72. Four of
+five seeds finished within 9.6% of the global sampled best, while seed 1
+remained 38.3% worse. The remaining failure is therefore sampling/
+initialization coverage, not surrogate ranking. Gate 1-Search is substantially
+improved but does not yet pass its cross-restart low-regret requirement.
+
 ## Still unproven
 
 - The trigger definition is still marked development-only.

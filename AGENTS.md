@@ -54,5 +54,7 @@ Teacher-budget rule:
   an authoritative distillation Teacher;
 - authoritative status requires stable low regret across restarts and exact
   shortlist reranking;
+- authoritative candidate ranking uses 32 sampled-safety integration substeps;
+  the rejected 4-substep surrogate must not determine a Teacher label;
 - quick CEM is only a debugging or coarse-proposal accelerator and must never
   decide Teacher stability, enter a formal dataset, or support a paper claim.

@@ -27,6 +27,8 @@ For selected difficult snapshots:
   of authoritative convergence;
 - use exact shortlist reranking and audit approximate-versus-exact candidate
   ranks before increasing the sampling budget;
+- use the now-validated 32-substep JAX candidate ranking; the 4-substep
+  surrogate is rejected because it can discard already-sampled good actions;
 - quick CEM is debugging/proposal infrastructure and cannot determine this Gate;
 - repeat Teacher searches with multiple random seeds;
 - compare equivalent local observations under rotation/permutation/reflection;
@@ -37,6 +39,12 @@ For selected difficult snapshots:
 Pass condition: Gate 1-Search first establishes a reliable oracle; then Gate
 1-Distill shows its labels are locally inferable and stable enough for a shared
 distributed Student. If not, repair the relevant stage before data generation.
+
+Current Gate 1-Search evidence: 32-substep ranking removes all observed
+approximate-versus-exact selection error on the N=5 frozen snapshot. Four of
+five historical-strong restarts are within 9.6% of the sampled global best, but
+one remains 38.3% worse. Next work is sampling/restart coverage under the same
+32-substep objective, not further surrogate or method redesign.
 
 ## Gate 2 — tiny closed-loop overfit
 

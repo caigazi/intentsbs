@@ -1,8 +1,9 @@
 """Compiled, batched candidate rollouts for the offline CEM Teacher.
 
-This is an approximate ranking backend.  It intentionally has no authority to
-emit a training label: the selected branch is replayed through the NumPy
-reference runtime before it can be accepted.
+This is a ranking backend and has no authority to emit a training label: the
+selected branch is replayed through the NumPy reference runtime before it can
+be accepted. The authoritative configuration uses the same 32 integration
+substeps as that reference replay.
 """
 
 from __future__ import annotations

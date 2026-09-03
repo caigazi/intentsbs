@@ -60,6 +60,18 @@ formal label, or support a paper claim.
 An authoritative distillation Teacher is defined by stable low regret across
 restarts plus exact shortlist reranking, not by a fixed budget name.
 
+## Surrogate fidelity sweep
+
+Replay the exact same saved CEM populations at several JAX integration
+resolutions without running a new Teacher search:
+
+```bash
+python run_v2_teacher_surrogate_sweep.py \
+  --source-report artifacts/raw/gate1_search_n5_strong_20260903/REPORT.json \
+  --substeps 4,8,16,32 \
+  --output artifacts/raw/gate1_surrogate_sweep_n5_20260903
+```
+
 ## Background rule for runs over one minute
 
 ```bash

@@ -18,7 +18,7 @@ from sbs824.v2.runtime import prepare_step
 from sbs824.v2.jax_safety import batched_wang_qp
 from sbs824.v2.jax_rollout import batched_candidate_costs
 from sbs824.v2.sampled_safety import sampled_wang_step
-from sbs824.v2.teacher import ComponentCEMTeacher
+from sbs824.v2.teacher import ComponentCEMTeacher, TeacherBudget
 from sbs824.v2.trigger import shadow_progress_ratio, ttc_candidates
 from sbs824.wang_safety import solve_wang_braking_qp, wang_pair_barrier
 
@@ -136,6 +136,7 @@ class SyncEventV2Test(unittest.TestCase):
         self.assertAlmostEqual(SYNC_EVENT_V2_DEV.hard_center_distance, 0.20)
         self.assertEqual(self.cfg.wang_safety_substeps, 32)
         self.assertEqual(SYNC_EVENT_V2_DEV.integration_substeps, 32)
+        self.assertEqual(TeacherBudget().planning_integration_substeps, 32)
 
     def test_runtime_solves_safety_qp_once_per_control_tick(self):
         cfg = make_v2_config(n_agents=2, n_obstacles=0)

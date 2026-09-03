@@ -1,0 +1,34 @@
+{
+  "status": "development_evidence_not_paper_claim",
+  "case": "n5_partial",
+  "snapshot_step": 19,
+  "active_agent_ids": [0, 4],
+  "teacher_budget": {
+    "strong_samples": 12,
+    "strong_iterations": 3,
+    "horizon_steps": 40,
+    "planning_integration_substeps": 32
+  },
+  "teacher_seeds": [0, 1, 2, 3, 4],
+  "selected_exact_costs": [
+    4634.62814074665,
+    5853.6397641719905,
+    4606.988783414715,
+    4623.5805670942,
+    4231.718962646669
+  ],
+  "sampling_regret_to_global_best": [
+    0.09521170513837424,
+    0.38327705971072196,
+    0.08868023233124601,
+    0.09260104650296692,
+    0.0
+  ],
+  "population_count": 30,
+  "ranking_mean_correlation": 1.0,
+  "exact_best_is_jax_top1": 30,
+  "maximum_jax_rank_of_exact_best": 0,
+  "maximum_jax_winner_exact_regret": 0.0,
+  "wall_seconds": 209.7644636258483,
+  "conclusion": "32-substep ranking eliminates observed surrogate selection loss; remaining instability is sampling or initialization coverage. Gate 1-Search is not yet passed because one of five restarts has 38.3% regret."
+}
