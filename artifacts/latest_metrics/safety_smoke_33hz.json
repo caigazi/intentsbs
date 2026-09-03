@@ -1,0 +1,41 @@
+{
+  "snapshot_repair": {
+    "agents": 8,
+    "minimum_center_distance_m": 0.20307906196642503,
+    "final_minimum_wang_barrier": 0.00023485540916309833,
+    "out_of_certificate_pair_samples": 0,
+    "maximum_final_speed_mps": 0.0
+  },
+  "teacher_smoke": [
+    {
+      "case": "n2_headon",
+      "success": 1,
+      "simulated_seconds": 7.08,
+      "wall_seconds": 20.26539272814989,
+      "minimum_center_distance_m": 0.2554410842013037,
+      "sbs_agent_seconds": 1.2300000000000009,
+      "certified_brake_agent_steps": 2,
+      "out_of_certificate_pair_samples": 0
+    },
+    {
+      "case": "n5_partial",
+      "success": 1,
+      "simulated_seconds": 7.41,
+      "wall_seconds": 51.61500447243452,
+      "minimum_center_distance_m": 0.25097994870394885,
+      "sbs_agent_seconds": 1.0500000000000005,
+      "certified_brake_agent_steps": 41,
+      "out_of_certificate_pair_samples": 0
+    },
+    {
+      "case": "n8_two_stream",
+      "success": 1,
+      "simulated_seconds": 13.559999999999999,
+      "wall_seconds": 342.3372597321868,
+      "minimum_center_distance_m": 0.23240587258994042,
+      "sbs_agent_seconds": 2.639999999999997,
+      "certified_brake_agent_steps": 186,
+      "out_of_certificate_pair_samples": 0
+    }
+  ]
+}

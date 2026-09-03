@@ -1,0 +1,17 @@
+numpy==2.5.2
+jax==0.4.38
+jaxlib==0.4.38
+flax==0.10.2
+jraph==0.0.6.dev0
+jaxtyping==0.3.11
+einops==0.8.2
+scipy==1.18.1
+matplotlib==3.11.1
+tensorflow-probability==0.25.0
+optax==0.2.4
+orbax-checkpoint==0.11.5
+equinox==0.11.11
+control==0.10.2
+seaborn==0.13.2
+ipdb==0.13.13
+jaxproxqp @ git+https://github.com/oswinso/jaxproxqp.git@8b6d76028ef19642b9684a33584624295ea69128

@@ -1,0 +1,12 @@
+numpy>=1.25
+scipy>=1.11
+imageio>=2.37
+imageio-ffmpeg>=0.6
+jax[cuda12]==0.4.38
+jaxlib==0.4.38
+jax-cuda12-plugin==0.4.38
+jax-cuda12-pjrt==0.4.38
+# AutoDL's base image exposed CUDA 11.8 ptxas first.  JAX 0.4.38 emits
+# newer PTX, so pin and explicitly select the matching pip CUDA assembler.
+nvidia-cuda-nvcc-cu12==12.9.86
+flax==0.10.2
