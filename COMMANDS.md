@@ -33,6 +33,33 @@ python run_v2_teacher_smoke.py \
 
 Cases are `n2_headon`, `n5_partial`, and `n8_two_stream`.
 
+## Teacher distillability development audit
+
+This writes diagnostics only and never emits a formal training dataset:
+
+```bash
+python run_v2_teacher_distillability.py \
+  --case n5_partial \
+  --teacher-seeds 0,1,2,3,4 \
+  --candidate-count 32 \
+  --output audit_n5_high
+```
+
+The default is the historical strong/high `12 x 3 x 40` Teacher budget. It has
+demonstrated control ability but is not automatically authoritative for
+distillation. Gate 1A transforms the same fixed candidates and checks exact
+objective cost.
+Gate 1B re-evaluates every cross-seed label under that same exact objective.
+Run it in the background because the exact candidate audit may exceed one
+minute. Inspect the report only after the user asks for status.
+
+`--debug-quick` is only for code-path debugging or coarse candidate proposals.
+Its report is marked non-authoritative and must never decide Gate 1, become a
+formal label, or support a paper claim.
+
+An authoritative distillation Teacher is defined by stable low regret across
+restarts plus exact shortlist reranking, not by a fixed budget name.
+
 ## Background rule for runs over one minute
 
 ```bash

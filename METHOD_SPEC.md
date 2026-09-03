@@ -74,7 +74,8 @@ making the learned policy output force or acceleration.
 ## Local observation and shared policy
 
 Every robot observes only itself and robots inside the 0.50 m sensing disk.
-All currently sensed neighbors participate; Top-5 truncation is postponed.
+All currently sensed neighbors participate; Top-5 truncation is not part of
+the method or roadmap.
 The Student will use shared parameters and permutation-invariant attention or
 message aggregation:
 
@@ -108,6 +109,10 @@ returns the world Intent smoothly to the Base velocity. BYPASS uses Base.
 This is spatially distributed but time-synchronous, matching the discrete-time
 deployment assumption used by the external GCBF+ baseline.
 
+The online TTC/CPA evidence is also not the offline SBS label. Online evidence
+exists to activate coordination before blocking develops; an episode may have
+predictive evidence but no offline SBS event because coordination prevented it.
+
 ## Safety backend
 
 The safety backend is Wang--Ames--Egerstedt feasible barrier filtering with
@@ -119,7 +124,10 @@ the currently sensed connected component because the pairwise braking lemma
 requires both endpoints to brake. Eq. (17) is integrated as maximum braking to
 zero speed and then zero force, even if stopping occurs inside a 30 ms tick.
 
-The safety layer is infrastructure, not the claimed novelty.
+Under the stated dynamics and sampled-execution assumptions, the filter
+enforces and certifies the modeled safety condition. This is not an
+unconditional claim under tracking error, delay, disturbance, or model
+mismatch. The safety layer is infrastructure, not the claimed novelty.
 
 ## Scope of SBS
 
@@ -131,3 +139,6 @@ until the obstacle-free A-SBS method is established.
 Primary metrics are success, completion-time distribution, cumulative and
 per-agent SBS duration, persistent-SBS probability, minimum separation,
 certificate violations, braking frequency, communication rate and runtime.
+Metric definitions, scene conventions and comparable parameter choices follow
+official GCBF+ conventions wherever compatible with the IntentComm method;
+unavoidable safety-definition differences must be disclosed explicitly.

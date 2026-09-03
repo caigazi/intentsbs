@@ -13,20 +13,20 @@ training/evaluation framework.
 
 ## Current stage
 
-The project is still before formal Teacher freeze.
+The project is at the end of Gate 0 and still before formal Teacher freeze.
 
 The 33 Hz Eq. (17) braking implementation bug has been fixed and its targeted
 safety smoke Gate passed for N=2, N=5, and N=8. The next stage is not large-scale
 training. It is Teacher-V2 distillability and quality validation under the
-frozen 33 Hz execution protocol.
+frozen 33 Hz execution protocol. The clean AutoDL clone now passes the complete
+31-test suite, and JAX/NumPy Wang-QP parity passed on a V100 GPU.
 
 ## Immediate next action
 
-1. Run the complete test suite from this clean directory.
-2. Audit and either repair or remove the audit-only Euler braking path in
-   `sbs824/v2/trigger.py` before it can influence any frozen trigger.
-3. Freeze one protocol manifest shared by dataset, Teacher, Student, and eval.
-4. Run the Teacher distillability audit described in `ROADMAP.md`.
+1. Finish the residual audit of the shadow predictor in
+   `sbs824/v2/trigger.py` without redesigning the online TTC/CPA trigger.
+2. Freeze one protocol manifest shared by dataset, Teacher, Student, and eval.
+3. Run the Teacher distillability audit described in `ROADMAP.md`.
 
 Do not generate the 48-scene dataset until those checks pass.
 

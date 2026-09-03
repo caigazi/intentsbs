@@ -11,6 +11,9 @@
 - Sensing, event evidence, ACTIVE/RELEASE/BYPASS state, and public-tick updates
   are separate concepts in the implementation.
 - The analytic Wang safety backend remains outside the learned policy.
+- The clean GitHub/AutoDL clone passes all 31 tests. Its V100 JAX backend has
+  x64 enabled and matches the NumPy Wang-QP reference to numerical precision.
+- Gate 0 is in protocol-freeze and residual-audit closeout, not broad redesign.
 
 ## Latest safety bug and repair
 
@@ -34,7 +37,8 @@ The identical state after exact hybrid braking repair:
 - final minimum barrier: +0.0002349;
 - out-of-certificate samples: 0.
 
-Regression result: 18 relevant unit tests passed on AutoDL.
+Regression result: all 31 unit tests passed on the clean AutoDL clone; the 18
+V2/Wang-specific tests are included in that total.
 
 ## 33 Hz targeted Teacher smoke results
 
@@ -51,6 +55,13 @@ Interpretation: the specific sampled braking defect is fixed and the targeted
 33 Hz safety smoke Gate passes. N=8 taking 13.56 s must not be presented as a
 quality result because this was the quick Teacher budget.
 
+Quick CEM remains useful for execution smoke and coarse proposals, but it is
+not authoritative evidence about Teacher distillability. The historical
+`12 x 3 x 40` strong/high budget proves that good control can be found in some
+runs, but the first N=5 fixed-snapshot audit showed that it does not yet have
+stable low regret across seeds. Authoritative status must be earned by
+convergence and exact-reranking evidence rather than a budget label.
+
 ## Still unproven
 
 - The trigger definition is still marked development-only.
@@ -59,9 +70,13 @@ quality result because this was the quick Teacher budget.
 - A newly aligned broad Student has not been trained.
 - Generalization, tail-SBS quality, obstacles, larger swarms, and real-robot
   behavior remain pending.
-- `sbs824/v2/trigger.py` contains audit-only shadow rollout helpers that still
-  use a simple Euler step; they must not silently become part of the frozen
-  trigger without matching the repaired hybrid safety execution.
+- `sbs824/v2/trigger.py` contains audit-only shadow rollout helpers. They must
+  remain diagnostic/ablation code and share the repaired sampled safety
+  executor rather than silently becoming a second online runtime.
+
+The online TTC/CPA predictor is early interaction evidence, not the offline SBS
+definition. A successful intervention may therefore have predictive evidence
+without a subsequently measured SBS event.
 
 ## Discarded evidence
 

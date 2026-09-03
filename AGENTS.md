@@ -19,13 +19,22 @@ Non-negotiable current choices:
 - Intent is updated on the same synchronous step while an agent is ACTIVE;
 - do not reintroduce the rejected 0.21 s or 100 Hz experiments;
 - public hard center distance is 0.20 m;
-- sensing radius is 0.50 m and all sensed neighbors are used for now;
+- sensing radius is 0.50 m and all sensed neighbors are used;
 - communication payload is only the two-dimensional world-velocity Intent;
-- no static obstacles, Top-5 truncation, or third communication scalar until
-  the obstacle-free 2--8 agent learning Gate passes;
+- do not introduce Top-5 truncation; the deployed policy uses every sensed
+  neighbor;
+- no static obstacles or third communication scalar until the obstacle-free
+  2--8 agent learning Gate passes;
+- benchmark definitions, scene conventions, metrics and comparable parameters
+  should follow official GCBF+ conventions wherever the method permits;
 - Teacher and Student must execute through the same runtime and safety backend;
 - the analytic safety layer remains separate from the learned coordination
   policy.
+
+The formal `sbs824/v2` path must not import legacy `train_*`, `phase*`,
+`rolling_cem_*`, round-specific, or archived experiment code. It may reuse only
+explicitly separated infrastructure such as `simulation`, `spatial`, and
+`wang_safety`.
 
 Long-run rule:
 
@@ -37,3 +46,13 @@ Long-run rule:
 
 Never train from a dataset whose protocol manifest differs from the runtime
 manifest. Never promote a development result to a paper claim.
+
+Teacher-budget rule:
+
+- `12 samples x 3 iterations x 40 steps` is the historical strong/high budget;
+  it proves that good control can be found in some runs but is not automatically
+  an authoritative distillation Teacher;
+- authoritative status requires stable low regret across restarts and exact
+  shortlist reranking;
+- quick CEM is only a debugging or coarse-proposal accelerator and must never
+  decide Teacher stability, enter a formal dataset, or support a paper claim.

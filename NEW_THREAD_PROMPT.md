@@ -5,8 +5,9 @@ Use this folder as the only workspace for the IntentComm-SBS project. First read
 `ROADMAP.md`. Do not scan the old `../sbs824` folder or historical conversation
 TXT files unless I explicitly request it.
 
-Continue from Gate 0: verify that every safety/trigger audit path uses the
-repaired 33 Hz hybrid Eq. (17) dynamics, then perform the Teacher-V2
+Gate 0 has a passing 31-test clean AutoDL run and passing N=2/N=5/N=8 safety
+smoke evidence. Finish its residual protocol/audit closeout without redesigning
+the method, then perform the Teacher-V2
 distillability audit. Do not generate the 48-scene dataset or train the broad
 Student until that Gate passes. Keep the method at 33.3 Hz, public hard distance
 0.20 m, sensing radius 0.50 m, all sensed neighbors, two-float world-velocity

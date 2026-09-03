@@ -2,7 +2,7 @@
 
 Do not skip a Gate because later experiments are more visually interesting.
 
-## Gate 0 — implementation consistency (current immediate work)
+## Gate 0 — implementation consistency (closeout)
 
 - Full unit suite passes.
 - Dataset, Teacher, Student and evaluation manifests must match exactly.
@@ -13,19 +13,30 @@ Do not skip a Gate because later experiments are more visually interesting.
 Pass condition: the 33 Hz implementation is internally consistent and the
 protocol can be changed from development-only to a versioned frozen protocol.
 
-## Gate 1 — Teacher distillability
+Current status: the full 31-test suite and N=2/N=5/N=8 safety smoke Gate pass.
+Only protocol freeze and residual audit-path cleanup remain; do not reopen the
+trigger, safety rate, or two-dimensional Intent design.
+
+## Gate 1 — authoritative Teacher and distillability (next formal Gate)
 
 For selected difficult snapshots:
 
+- first pass Gate 1-Search: build an authoritative offline Teacher whose exact
+  cost has stable low regret across restarts;
+- treat `12 x 3 x 40` as the historical strong/high budget, not automatic proof
+  of authoritative convergence;
+- use exact shortlist reranking and audit approximate-versus-exact candidate
+  ranks before increasing the sampling budget;
+- quick CEM is debugging/proposal infrastructure and cannot determine this Gate;
 - repeat Teacher searches with multiple random seeds;
 - compare equivalent local observations under rotation/permutation/reflection;
 - check that equivalent local observations do not receive contradictory labels;
 - quantify branch multimodality and chirality consistency;
 - verify high-budget Teacher decisively improves Base on tail A-SBS cases.
 
-Pass condition: labels are locally inferable and stable enough for a shared
-distributed Student. If not, repair Teacher objective/tie handling before data
-generation.
+Pass condition: Gate 1-Search first establishes a reliable oracle; then Gate
+1-Distill shows its labels are locally inferable and stable enough for a shared
+distributed Student. If not, repair the relevant stage before data generation.
 
 ## Gate 2 — tiny closed-loop overfit
 
@@ -66,7 +77,8 @@ failed Student rollouts. Do not repeatedly replay whole failed episodes.
 
 ## Gate 6 — development benchmark
 
-Evaluate old36 and fresh16 separately. Compare at minimum:
+Evaluate old36 and fresh16 separately as a 52-scene development benchmark, not
+as a final test set. Compare at minimum:
 
 - Base LQR + identical analytic safety backend;
 - IntentComm Student;
@@ -77,6 +89,9 @@ Report success, mean/P95 completion time, mean/P95 SBS, persistent SBS, minimum
 distance and safety violations. Do not claim fair safety-space equivalence if
 baseline safety definitions differ.
 
+After checkpoint selection and ablation decisions are complete, generate a new
+held-out benchmark for final paper numbers.
+
 ## Gate 7 — extensions
 
 Only after the obstacle-free 2--8-agent Gate is solid:
@@ -84,6 +99,5 @@ Only after the obstacle-free 2--8-agent Gate is solid:
 1. scale at fixed density to 16/32/64/128;
 2. profile local-neighbor and policy latency;
 3. add GCBF+-style non-pathological static obstacle fields;
-4. test whether a third nonnegative congestion scalar or Top-5 truncation is
-   needed;
+4. test whether a third nonnegative congestion scalar is needed;
 5. progress toward quadrotor tracking and real experiments.

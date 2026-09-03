@@ -1,11 +1,12 @@
 # AutoDL handoff
 
-Use the development branch `codex/gpu-teacher-dev`. The current purpose of
-the cloud instance is backend verification, not formal dataset generation.
+Use the clean GitHub `main` branch. The cloud instance is the compute worker for
+Gate-0 verification and Teacher-distillability experiments, not formal dataset
+generation yet.
 
 ```bash
-git clone -b codex/gpu-teacher-dev https://github.com/caigazi/sbs.git
-cd sbs
+git clone -b main https://github.com/caigazi/intentsbs.git IntentComm-SBS-Clean
+cd IntentComm-SBS-Clean
 bash hpc/autodl_setup.sh
 bash hpc/autodl_smoke.sh
 ```
@@ -19,10 +20,10 @@ source hpc/autodl_env.sh
 Expected setup output contains `backend: gpu`, one `GpuDevice`, and `x64:
 True`. It must also resolve `ptxas` inside the active Python environment at
 `site-packages/nvidia/cuda_nvcc/bin/ptxas`, currently pinned to CUDA 12.9.86.
-The smoke runs all unit tests, a batched Wang-QP parity benchmark, and only the
-N=2 Teacher case.
+The clean AutoDL clone has passed all 31 tests. The V100 JAX backend runs with
+x64 enabled and matches the NumPy Wang-QP reference to numerical precision.
 
-Do not run N=8 or generate training data yet. Under the current one-QP-per-
-30-ms sampled-data backend, the N=8 two-stream case leaves the Wang braking
-certificate while remaining just outside the public 0.20-m center-distance
-line. The safety update architecture must be frozen first.
+After the hybrid Eq. (17) repair, N=2/N=5/N=8 targeted safety smoke cases all
+pass with zero certificate violations. Do not generate the 48-scene dataset
+yet: finish protocol freeze, then pass Teacher distillability and the tiny
+closed-loop overfit Gate first.

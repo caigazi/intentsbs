@@ -8,8 +8,8 @@ import numpy as np
 
 from ..simulation import Config
 from ..spatial import radius_neighbor_lists
-from ..wang_safety import solve_wang_braking_qp
 from .protocol import SyncEventProtocol
+from .sampled_safety import sampled_wang_step
 
 
 @dataclass(frozen=True)
@@ -99,10 +99,15 @@ def _components(n_agents: int, edges: tuple[tuple[int, int], ...]
     return tuple(result)
 
 
-def _step(state: np.ndarray, force: np.ndarray, cfg: Config) -> np.ndarray:
+def _integrate_nominal_step(state: np.ndarray, force: np.ndarray,
+                            cfg: Config) -> np.ndarray:
+    """Integrate one unconstrained tick with constant force."""
     nxt = np.asarray(state, dtype=float).copy()
-    nxt[:, :2] += nxt[:, 2:] * cfg.dt
-    nxt[:, 2:] += np.asarray(force, dtype=float) / cfg.mass * cfg.dt
+    velocity = nxt[:, 2:].copy()
+    acceleration = np.asarray(force, dtype=float) / cfg.mass
+    nxt[:, :2] += (
+        velocity * cfg.dt + 0.5 * acceleration * cfg.dt * cfg.dt)
+    nxt[:, 2:] = velocity + acceleration * cfg.dt
     nxt[:, 2:] = np.clip(nxt[:, 2:], -cfg.max_speed, cfg.max_speed)
     return nxt
 
@@ -139,9 +144,7 @@ def shadow_progress_ratio(ego_local_id: int, local_state: np.ndarray,
     substeps = cfg.wang_safety_substeps if safety_substeps is None else safety_substeps
     if substeps < 1:
         raise ValueError("safety_substeps must be positive")
-    local_cfg = replace(
-        cfg, n_agents=len(local_state), n_obstacles=0,
-        dt=cfg.dt / substeps, wang_safety_substeps=1)
+    local_cfg = replace(cfg, n_agents=len(local_state), n_obstacles=0)
     nominal_progress = 0.0
     safe_progress = 0.0
     for _ in range(horizon_steps):
@@ -151,14 +154,18 @@ def shadow_progress_ratio(ego_local_id: int, local_state: np.ndarray,
         safe_force = np.clip(
             cfg.mass * (reference - safe[:, 2:]) / cfg.dt,
             -cfg.max_force, cfg.max_force)
-        nominal = _step(nominal, nominal_force, replace(cfg, n_agents=len(local_state)))
-        nominal_progress += max(0.0, float(direction @ nominal[ego_local_id, 2:])) * cfg.dt
-        for _sub in range(substeps):
-            solved = solve_wang_braking_qp(
-                safe, safe_force, [], local_cfg, braking_latch=latch)
-            safe = _step(safe, solved.action, local_cfg)
-            safe_progress += max(
-                0.0, float(direction @ safe[ego_local_id, 2:])) * local_cfg.dt
+        nominal_before = nominal[ego_local_id, :2].copy()
+        safe_before = safe[ego_local_id, :2].copy()
+        nominal = _integrate_nominal_step(nominal, nominal_force, local_cfg)
+        safety = sampled_wang_step(
+            safe, safe_force, [], local_cfg, latch,
+            integration_substeps=substeps)
+        safe = safety.next_state
+        nominal_progress += max(
+            0.0, float(direction @ (nominal[ego_local_id, :2]
+                                    - nominal_before)))
+        safe_progress += max(
+            0.0, float(direction @ (safe[ego_local_id, :2] - safe_before)))
     return float(np.clip(safe_progress / (nominal_progress + 1e-9), 0.0, 2.0))
 
 

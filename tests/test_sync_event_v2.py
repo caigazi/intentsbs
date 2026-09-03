@@ -2,6 +2,7 @@ import ast
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -18,7 +19,7 @@ from sbs824.v2.jax_safety import batched_wang_qp
 from sbs824.v2.jax_rollout import batched_candidate_costs
 from sbs824.v2.sampled_safety import sampled_wang_step
 from sbs824.v2.teacher import ComponentCEMTeacher
-from sbs824.v2.trigger import ttc_candidates
+from sbs824.v2.trigger import shadow_progress_ratio, ttc_candidates
 from sbs824.wang_safety import solve_wang_braking_qp, wang_pair_barrier
 
 
@@ -148,6 +149,17 @@ class SyncEventV2Test(unittest.TestCase):
             runtime, goals, gain, cfg, SYNC_EVENT_V2_DEV,
             np.tile([1.0, 0.0], (2, 1)))
         self.assertEqual(trace.safety_qp_solves, 1)
+
+        with patch(
+                "sbs824.v2.trigger.sampled_wang_step",
+                wraps=sampled_wang_step) as shared_safety:
+            shadow_progress_ratio(
+                0, state, np.array([[0.2, 0.0], [-0.2, 0.0]]), cfg,
+                horizon_steps=2, safety_substeps=8)
+        self.assertEqual(shared_safety.call_count, 2)
+        self.assertTrue(all(
+            call.kwargs["integration_substeps"] == 8
+            for call in shared_safety.call_args_list))
 
     def test_low_speed_eq17_stops_before_tick_end_without_leaving_certificate(self):
         cfg = make_v2_config(n_agents=2, n_obstacles=0)
