@@ -113,6 +113,48 @@ The online TTC/CPA evidence is also not the offline SBS label. Online evidence
 exists to activate coordination before blocking develops; an episode may have
 predictive evidence but no offline SBS event because coordination prevented it.
 
+## Authoritative offline Teacher
+
+The flexible component CEM remains available only for development diagnostics.
+Formal labels use a separate authoritative path with a minimum
+`4096 samples x 3 iterations x 4 independent restarts`, a 40-step horizon and
+the deployed 32-substep sampled-safety objective on JAX x64. Component changes
+start from fresh CEM distributions on every ACTIVE tick; historical light
+search, reuse and stale distribution warm starts are prohibited during the
+tiny/Distillability stage.
+
+Each restart winner is exactly reranked. Candidates inside the 1% recovered-
+improvement quality band are canonicalized by choosing the actual candidate
+closest to previous Intent, which is Student-visible. This rule never averages
+actions and introduces no fixed action template, robot ID, Top-k neighbor list,
+or additional communication scalar. Debug/quick/single-restart outputs are
+rejected by the formal dataset writer.
+
+The offline Teacher may use global state to optimize joint behavior, but a
+saved label must be realizable by the deployed shared local Student. In
+particular, agents with identical canonical legal local graph inputs must
+receive identical `(alpha, beta)` labels even if the Teacher partitions them
+into different connected components. Conflicting states are not repaired by
+arithmetic averaging. They are re-optimized under this global equality
+constraint using the same 32-substep exact objective, and the constrained
+candidate is accepted only when it remains inside the audited quality band.
+
+## Student and development training
+
+The Student is one shared permutation-invariant GNN applied independently at
+each robot with shared parameters. Batched evaluation during training is an
+implementation detail, not centralized deployment. The policy consumes only
+the legal local observation described above and outputs one continuous
+two-dimensional Intent parameter pair per robot.
+
+Small-pipeline validation may include N=2 through N=8 to verify variable-size
+plumbing and expose regressions. Formal main training remains anchored at N=8,
+following the GCBF+ style of training at one representative swarm size and
+evaluating transfer separately. Failure-driven DAgger should collect short
+windows around the first causal divergence, balance broad and hard replay, and
+evaluate before relabeling. Repeatedly appending entire failed episodes or
+blindly increasing DAgger rounds is not part of the method.
+
 ## Safety backend
 
 The safety backend is Wang--Ames--Egerstedt feasible barrier filtering with

@@ -6,4 +6,5 @@ __pycache__/
 *.pstats
 *_smoke/
 artifacts/raw/
+artifacts/pids/
 vendor/

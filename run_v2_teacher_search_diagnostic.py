@@ -10,7 +10,7 @@ from time import perf_counter
 import numpy as np
 
 from run_v2_teacher_distillability import capture_first_active
-from sbs824.v2.protocol import SYNC_EVENT_V2_DEV
+from sbs824.v2.protocol import SYNC_EVENT_V2
 from sbs824.v2.teacher import ComponentCEMTeacher, TeacherBudget
 
 
@@ -33,7 +33,7 @@ def run(case: str, seeds: list[int], output: Path) -> dict:
 
     for seed in seeds:
         teacher = ComponentCEMTeacher(
-            SYNC_EVENT_V2_DEV, budget=budget, seed=seed,
+            SYNC_EVENT_V2, budget=budget, seed=seed,
             audit_exact_candidates=True)
         decision = teacher.decide(runtime, prepared, goals, gain, cfg)
         records = teacher.search_audit
@@ -95,7 +95,7 @@ def run(case: str, seeds: list[int], output: Path) -> dict:
         "snapshot_step": runtime.step,
         "active_seeds": seeds,
         "active_agent_ids": active_ids.tolist(),
-        "protocol": SYNC_EVENT_V2_DEV.manifest(),
+        "protocol": SYNC_EVENT_V2.manifest(),
         "budget": seed_reports[0]["teacher_statistics"]["budget"],
         "global_best_exact_cost_sampled": global_best,
         "seed_reports": seed_reports,

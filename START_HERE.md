@@ -3,48 +3,79 @@
 ## Objective
 
 Develop a spatially distributed, time-synchronous coordination layer that
-reduces agent-agent safety-induced blocking (A-SBS). Each robot uses local
-observations and broadcasts only a two-dimensional velocity Intent. A separate
-analytic safety filter enforces collision avoidance.
+reduces agent-agent safety-induced blocking (A-SBS). Each robot uses a shared
+local policy, observes every neighbor inside 0.50 m, and broadcasts only a
+two-dimensional world-velocity Intent. A separate analytic Wang safety filter
+enforces collision avoidance.
 
-The contribution is not a new nominal navigator or a learned barrier. It is the
-event-gated, low-bandwidth, variable-neighborhood coordination policy and its
-training/evaluation framework.
+The contribution is the event-gated, low-bandwidth, variable-neighborhood
+coordination policy and its training/evaluation framework. It is not a new
+nominal navigator, learned barrier, or centralized deployed controller.
 
 ## Current stage
 
-The project is at the end of Gate 0 and still before formal Teacher freeze.
+Gate 0 is complete. Representative Teacher search coverage and the audited
+Student-compatible label construction are complete enough for development
+training. Tiny/small Student training has reached Gate 3, but Gate 3 has not
+passed.
 
-The 33 Hz Eq. (17) braking implementation bug has been fixed and its targeted
-safety smoke Gate passed for N=2, N=5, and N=8. The next stage is not large-scale
-training. It is Teacher-V2 distillability and quality validation under the
-frozen 33 Hz execution protocol. The clean AutoDL clone now passes the complete
-31-test suite, and JAX/NumPy Wang-QP parity passed on a V100 GPU.
+The latest checkpoint is the D2 shared GNN trained from 771 labels after
+globally constraining identical legal local observations to receive identical
+actions. Its fixed 16-scene development result is 8/16 overall and 4/10 for
+N=8. This recovers from D1 (5/16, N=8 3/10) but remains below D0 (9/16, N=8
+6/10). All latest validation trajectories remain above the public 0.20 m hard
+center distance; the minimum is 0.201231 m.
+
+The active problem is therefore small-data cross-scene regression/coverage in
+the shared Student, not CEM search failure and not unresolved exact-input label
+contradiction. Do not reopen Teacher architecture or add communication fields
+without new evidence.
 
 ## Immediate next action
 
-1. Finish the residual audit of the shadow predictor in
-   `sbs824/v2/trigger.py` without redesigning the online TTC/CPA trigger.
-2. Freeze one protocol manifest shared by dataset, Teacher, Student, and eval.
-3. Run the Teacher distillability audit described in `ROADMAP.md`.
+1. Use the existing D0/D1/D2 fixed-validation reports and saved trajectories to
+   diagnose the eight D2 failures. Start with persistent failures N=4 seed 8602
+   and N=5 seed 8603, then N=8 seeds 8701/8703/8704/8706/8707/8709.
+2. Separate ordinary on-policy coverage gaps from cross-scene forgetting or
+   loss imbalance. Do not launch another blind DAgger round first.
+3. Then run a small, GCBF+-aligned training-pipeline experiment: multi-N
+   plumbing coverage, N=8 as the main training anchor, shared-policy replay
+   balance, and failure-window collection rather than whole-episode patches.
+4. Gate 3 must pass before any formal 48-scene dataset, obstacles, third scalar,
+   larger swarm scaling, or paper claim.
 
-Do not generate the 48-scene dataset until those checks pass.
+## Frozen choices
 
-## Authoritative snapshot
+- control and ACTIVE Intent update: 0.03 s synchronous ticks;
+- hard center distance: 0.20 m; internal certificate: 0.2025 m;
+- sensing radius: 0.50 m; every sensed neighbor is used; no Top-5;
+- communication: only two-dimensional world-velocity Intent;
+- shared permutation-invariant local Student; no robot IDs;
+- analytic safety remains separate from learned coordination;
+- no obstacles until the obstacle-free 2--8 agent learning Gate passes;
+- benchmark conventions and comparable settings follow official GCBF+ where
+  the method permits.
 
-The source in this folder was copied directly from the AutoDL working tree
-after commit `3be21fa` (`fix Eq17 sampled hybrid braking at 33 Hz`). That commit
-exists on AutoDL branch `codex/gpu-teacher-dev` but was not pushed to GitHub
-because the server has no GitHub credentials. GitHub/origin was still at
-`c7a8e56` when this handoff was created.
+## Current evidence and artifacts
+
+- latest training report:
+  `artifacts/raw/gate3_d2_student_train_global_compatible_20260907_v2/REPORT.json`
+- latest fixed validation:
+  `artifacts/raw/gate3_d2_global_compatible_fixed_validation_20260907_v2/REPORT.json`
+- global Student-compatible CEM audit:
+  `artifacts/raw/gate3_student_compatible_global_cem_audit_20260906_v2/REPORT.json`
+- D1 and D2 authoritative label summaries:
+  `artifacts/raw/gate3_d1_authoritative_labels_20260905_v1/REPORT.json` and
+  `artifacts/raw/gate3_d2_authoritative_labels_20260906_v1/REPORT.json`
+
+These large/raw artifacts live on AutoDL and are not necessarily stored in Git.
+Git contains the implementation, tests, protocol, and handoff documentation.
 
 ## Where to look
 
-- Method definition: `METHOD_SPEC.md`
-- Evidence and exact latest metrics: `PROJECT_STATUS.md`
-- Ordered research Gates: `ROADMAP.md`
-- Reproducible commands: `COMMANDS.md`
-- Core implementation: `sbs824/v2/`
-- Analytic safety backend: `sbs824/wang_safety.py`
-- Regression tests: `tests/test_sync_event_v2.py` and
-  `tests/test_wang_safety.py`
+- exact latest evidence: `PROJECT_STATUS.md`
+- frozen method: `METHOD_SPEC.md`
+- ordered Gates: `ROADMAP.md`
+- reproducible commands: `COMMANDS.md`
+- core implementation: `sbs824/v2/`
+- regression tests: `tests/`

@@ -12,7 +12,7 @@ import numpy as np
 
 from run_v2_teacher_distillability import capture_first_active
 from sbs824.v2.jax_rollout import batched_candidate_costs
-from sbs824.v2.protocol import IntentMode, SYNC_EVENT_V2_DEV
+from sbs824.v2.protocol import IntentMode, SYNC_EVENT_V2
 
 
 def ranks(values: np.ndarray) -> np.ndarray:
@@ -88,12 +88,12 @@ def evaluate(runtime, prepared, goals, gain, cfg,
         sense_radius=cfg.sense_radius, max_force=cfg.max_force,
         max_speed=cfg.max_speed,
         safe_distance=cfg.wang_pair_safe_radius_factor * cfg.car_radius,
-        hard_distance=SYNC_EVENT_V2_DEV.hard_center_distance,
+        hard_distance=SYNC_EVENT_V2.hard_center_distance,
         wang_gamma=cfg.wang_gamma,
-        lateral_speed=SYNC_EVENT_V2_DEV.lateral_speed,
-        max_intent_accel=SYNC_EVENT_V2_DEV.max_intent_accel,
-        intent_lookahead=SYNC_EVENT_V2_DEV.intent_lookahead,
-        action_smooth_weight=SYNC_EVENT_V2_DEV.action_smooth_weight))
+        lateral_speed=SYNC_EVENT_V2.lateral_speed,
+        max_intent_accel=SYNC_EVENT_V2.max_intent_accel,
+        intent_lookahead=SYNC_EVENT_V2.intent_lookahead,
+        action_smooth_weight=SYNC_EVENT_V2.action_smooth_weight))
 
 
 def run(source_report: Path, substeps: list[int], output: Path) -> dict:

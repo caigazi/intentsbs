@@ -11,11 +11,12 @@ import numpy as np
 
 from sbs824.liveness import LocalSBSMonitor, LocalStep
 from sbs824.simulation import _dare_gain
-from sbs824.v2.protocol import SYNC_EVENT_V2_DEV, make_v2_config
+from sbs824.v2.protocol import SYNC_EVENT_V2, make_v2_config
 from sbs824.v2.runtime import (apply_prepared_step, initialize_runtime,
                                prepare_step)
 from sbs824.v2.scenes import headon_scene, mixed_crossing_scene
-from sbs824.v2.teacher import (ComponentCEMTeacher, TeacherBudget,
+from sbs824.v2.teacher import (AuthoritativeComponentTeacher,
+                               ComponentCEMTeacher, TeacherBudget,
                                TeacherFeedback)
 
 
@@ -42,16 +43,19 @@ def minimum_center(state: np.ndarray) -> float:
     return float(distance.min())
 
 
-def run(name: str, output: Path, budget: TeacherBudget) -> dict:
+def run(name: str, output: Path, budget: TeacherBudget | None,
+        *, debug_quick: bool) -> dict:
     state, goals, topology, seed = scene(name)
     cfg = make_v2_config(
         n_agents=len(state), n_obstacles=0, seed=seed, steps=600,
         adaptive_goal_dwell_steps=20)
     gain = _dare_gain(cfg.dt, cfg.mass)
     runtime = initialize_runtime(
-        state, goals, gain, cfg, SYNC_EVENT_V2_DEV)
-    teacher = ComponentCEMTeacher(
-        SYNC_EVENT_V2_DEV, budget=budget, seed=seed + 3000)
+        state, goals, gain, cfg, SYNC_EVENT_V2)
+    teacher = (ComponentCEMTeacher(
+        SYNC_EVENT_V2, budget=budget, seed=seed + 3000)
+        if debug_quick else AuthoritativeComponentTeacher(
+            SYNC_EVENT_V2, seed=seed + 3000))
     monitors = [LocalSBSMonitor(
         dt=cfg.dt, window_steps=cfg.stall_window_steps,
         nominal_epsilon=cfg.sbs_nominal_progress_epsilon,
@@ -73,7 +77,7 @@ def run(name: str, output: Path, budget: TeacherBudget) -> dict:
     total_outside = 0
     for _ in range(cfg.steps):
         prepared = prepare_step(
-            runtime, goals, gain, cfg, SYNC_EVENT_V2_DEV)
+            runtime, goals, gain, cfg, SYNC_EVENT_V2)
         if prepared.refresh_mask.any():
             decision = teacher.decide(
                 runtime, prepared, goals, gain, cfg, feedback)
@@ -84,7 +88,7 @@ def run(name: str, output: Path, budget: TeacherBudget) -> dict:
             sources.append(np.full(cfg.n_agents, "bypass", dtype="U8"))
         previous = runtime.physical.copy()
         runtime, trace = apply_prepared_step(
-            runtime, prepared, goals, gain, cfg, SYNC_EVENT_V2_DEV,
+            runtime, prepared, goals, gain, cfg, SYNC_EVENT_V2,
             proposal)
         minimum = min(minimum, minimum_center(runtime.physical))
         total_brake += trace.certified_brake_agents
@@ -106,7 +110,7 @@ def run(name: str, output: Path, budget: TeacherBudget) -> dict:
             progress_ratio=ratio)
         if (trace.out_of_certificate_pair_samples > 0
                 or trace.minimum_center_distance
-                < SYNC_EVENT_V2_DEV.hard_center_distance):
+                < SYNC_EVENT_V2.hard_center_distance):
             termination = "safety_invalid"
             positions.append(runtime.physical[:, :2].copy())
             parameters.append(runtime.parameters.copy())
@@ -124,7 +128,7 @@ def run(name: str, output: Path, budget: TeacherBudget) -> dict:
                 actual_goal_speed=float(actual_progress[agent]),
                 active_agent_interaction=bool(
                     prepared.mode[agent] == 1),
-                safe=bool(minimum >= SYNC_EVENT_V2_DEV.hard_center_distance),
+                safe=bool(minimum >= SYNC_EVENT_V2.hard_center_distance),
                 reached=bool(arrived[agent])))
             sbs_now[agent] = value.online_sbs
         sbs_agents |= sbs_now
@@ -156,7 +160,10 @@ def run(name: str, output: Path, budget: TeacherBudget) -> dict:
         "sbs_agent_seconds": sbs_agent_seconds,
         "certified_brake_agent_steps": total_brake,
         "out_of_certificate_pair_samples": total_outside,
-        "protocol": SYNC_EVENT_V2_DEV.manifest(),
+        "protocol": SYNC_EVENT_V2.manifest(),
+        "teacher_tier": (
+            "debug_quick_non_authoritative" if debug_quick
+            else AuthoritativeComponentTeacher.tier),
         "teacher": teacher.statistics(),
     }
     (output / "REPORT.json").write_text(
@@ -171,14 +178,17 @@ def main() -> None:
         default="n2_headon")
     parser.add_argument("--output", type=Path,
                         default=ROOT / "sync_event_v2_teacher_smoke")
-    parser.add_argument("--quick", action="store_true")
+    parser.add_argument(
+        "--debug-quick", action="store_true",
+        help="explicit non-authoritative execution/debug path")
     args = parser.parse_args()
     budget = (TeacherBudget(
         strong_samples=8, strong_iterations=2,
         light_samples=4, light_iterations=1,
         horizon_steps=24, max_reuse_ticks=3)
-        if args.quick else TeacherBudget())
-    result = run(args.case, args.output, budget)
+        if args.debug_quick else None)
+    result = run(
+        args.case, args.output, budget, debug_quick=args.debug_quick)
     print(json.dumps(result), flush=True)
 
 

@@ -47,6 +47,19 @@ Long-run rule:
 Never train from a dataset whose protocol manifest differs from the runtime
 manifest. Never promote a development result to a paper claim.
 
+Current Student-development rule:
+
+- the project is at Gate 3, not Teacher redesign;
+- the latest D2 fixed result is 8/16 overall and 4/10 at N=8;
+- exact equivalent-input label conflicts above 0.1 have been eliminated by the
+  global Student-compatible constrained-CEM audit;
+- diagnose the existing failed D2 trajectories before starting D3;
+- small-pipeline checks may cover N=2--8, but formal main training is anchored
+  at N=8 and should use balanced broad/hard replay;
+- do not add IDs, fixed beta templates, history, multimodal heads, obstacles, or
+  a third communication scalar without evidence that the current legal local
+  observation and shared GNN are insufficient.
+
 Teacher-budget rule:
 
 - `12 samples x 3 iterations x 40 steps` is the historical strong/high budget;
@@ -54,6 +67,11 @@ Teacher-budget rule:
   an authoritative distillation Teacher;
 - authoritative status requires stable low regret across restarts and exact
   shortlist reranking;
+- formal labels must use `AuthoritativeComponentTeacher`, with at least
+  `4096 samples x 3 iterations x 4 independent cold restarts`; the current
+  tiny/Distillability Teacher fresh-searches every ACTIVE tick;
+- the authoritative path has no light CEM, single-restart mode, approximate
+  ranking, quick fallback, NumPy fallback, or reuse;
 - authoritative candidate ranking uses 32 sampled-safety integration substeps;
   the rejected 4-substep surrogate must not determine a Teacher label;
 - quick CEM is only a debugging or coarse-proposal accelerator and must never

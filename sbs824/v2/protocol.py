@@ -16,14 +16,10 @@ class IntentMode(IntEnum):
 
 @dataclass(frozen=True)
 class SyncEventProtocol:
-    """Spatially local, fixed-rate synchronous Intent update protocol.
+    """Spatially local, fixed-rate synchronous Intent update protocol."""
 
-    ``development=True`` prevents this still-audited trigger definition from
-    being mistaken for a frozen paper/data protocol.
-    """
-
-    version: str = "sync_event_v2_dev"
-    development: bool = True
+    version: str = "sync_event_v2"
+    development: bool = False
     control_dt: float = 0.03
     intent_period_steps: int = 1
     sensing_radius: float = 0.50
@@ -50,7 +46,7 @@ class SyncEventProtocol:
     safety_backend: str = "wang"
 
     def validate(self, cfg) -> None:
-        if self.version != "sync_event_v2_dev":
+        if self.version != "sync_event_v2":
             raise ValueError(f"unsupported protocol version: {self.version}")
         if self.intent_period_steps < 1:
             raise ValueError("intent_period_steps must be positive")
@@ -88,18 +84,28 @@ class SyncEventProtocol:
     def assert_data_ready(self) -> None:
         if self.development:
             raise RuntimeError(
-                "sync_event_v2 trigger is not frozen; formal datasets are "
-                "disabled until the trigger audit passes")
+                f"{self.version} is a development protocol; formal datasets "
+                "require the frozen sync_event_v2 manifest")
 
     def manifest(self) -> dict:
         return asdict(self)
 
+    def assert_manifest_matches(self, manifest: dict) -> None:
+        """Reject data or checkpoints created under any other protocol."""
+        expected = self.manifest()
+        if manifest != expected:
+            differing = sorted(
+                key for key in set(expected) | set(manifest)
+                if manifest.get(key) != expected.get(key))
+            raise RuntimeError(
+                f"protocol manifest differs from {self.version}: {differing}")
 
-SYNC_EVENT_V2_DEV = SyncEventProtocol()
+
+SYNC_EVENT_V2 = SyncEventProtocol()
 
 
 def make_v2_config(**overrides):
-    """Build the only accepted double-integrator configuration for v2-dev."""
+    """Build the only accepted double-integrator configuration for v2."""
     from ..simulation import Config
 
     fixed = {
@@ -124,7 +130,7 @@ def make_v2_config(**overrides):
         raise ValueError(f"v2 fixed-parameter override rejected: {conflicts}")
     fixed.update(overrides)
     cfg = Config(**fixed)
-    SYNC_EVENT_V2_DEV.validate(cfg)
+    SYNC_EVENT_V2.validate(cfg)
     return cfg
 
 

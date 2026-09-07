@@ -5,6 +5,6 @@ This package deliberately imports only reusable controller infrastructure from
 ``rolling_cem_*`` experiment scripts.
 """
 
-from .protocol import IntentMode, SYNC_EVENT_V2_DEV, SyncEventProtocol
+from .protocol import IntentMode, SYNC_EVENT_V2, SyncEventProtocol
 
-__all__ = ["IntentMode", "SYNC_EVENT_V2_DEV", "SyncEventProtocol"]
+__all__ = ["IntentMode", "SYNC_EVENT_V2", "SyncEventProtocol"]

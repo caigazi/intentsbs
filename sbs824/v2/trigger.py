@@ -173,18 +173,28 @@ def local_shadow_ratios(state: np.ndarray, reference_velocity: np.ndarray,
                         candidates: TriggerResult, cfg: Config,
                         horizon_steps: int,
                         safety_substeps: int | None = None) -> np.ndarray:
-    """Compute one multi-neighbor shadow ratio per candidate ego."""
+    """Compute candidate-ego ratios with every currently sensed neighbor.
+
+    TTC/CPA edges decide which egos need the audit. They must not truncate the
+    local rollout because the shared Wang backend uses every neighbor inside
+    the sensing disk.
+    """
     state = np.asarray(state, dtype=float)
     reference = np.asarray(reference_velocity, dtype=float)
-    adjacency = [set() for _ in range(cfg.n_agents)]
-    for left, right in candidates.edges:
-        adjacency[left].add(right)
-        adjacency[right].add(left)
+    if state.shape != (cfg.n_agents, 4):
+        raise ValueError("state must have shape (n_agents, 4)")
+    if reference.shape != (cfg.n_agents, 2):
+        raise ValueError("reference_velocity must have shape (n_agents, 2)")
+    evidence = np.asarray(candidates.evidence, dtype=bool)
+    if evidence.shape != (cfg.n_agents,):
+        raise ValueError("candidate evidence must have shape (n_agents,)")
+    neighborhoods = radius_neighbor_lists(state[:, :2], cfg.sense_radius)
     ratios = np.ones(cfg.n_agents, dtype=float)
-    for ego, neighbors in enumerate(adjacency):
-        if not neighbors:
+    for ego in np.flatnonzero(evidence):
+        neighbors = neighborhoods[ego]
+        if not len(neighbors):
             continue
-        ids = np.asarray([ego, *sorted(neighbors)], dtype=int)
+        ids = np.asarray([ego, *neighbors], dtype=int)
         ratios[ego] = shadow_progress_ratio(
             0, state[ids], reference[ids], cfg, horizon_steps,
             safety_substeps=safety_substeps)

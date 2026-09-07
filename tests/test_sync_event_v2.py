@@ -1,4 +1,6 @@
 import ast
+from dataclasses import replace
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -11,15 +13,19 @@ import jax.numpy as jnp
 from sbs824.simulation import _dare_gain
 from sbs824.v2.dataset import DecisionDataset
 from sbs824.v2.features import build_local_features
-from sbs824.v2.protocol import (IntentMode, SYNC_EVENT_V2_DEV,
+from sbs824.v2.protocol import (IntentMode, SYNC_EVENT_V2,
                                 make_v2_config)
 from sbs824.v2.runtime import initialize_runtime, step_runtime
 from sbs824.v2.runtime import prepare_step
 from sbs824.v2.jax_safety import batched_wang_qp
 from sbs824.v2.jax_rollout import batched_candidate_costs
 from sbs824.v2.sampled_safety import sampled_wang_step
-from sbs824.v2.teacher import ComponentCEMTeacher, TeacherBudget
-from sbs824.v2.trigger import shadow_progress_ratio, ttc_candidates
+from sbs824.v2.teacher import (AuthoritativeComponentTeacher,
+                               AuthoritativeTeacherBudget,
+                               ComponentCEMTeacher, TeacherBudget,
+                               TeacherDecision)
+from sbs824.v2.trigger import (TriggerResult, local_shadow_ratios,
+                               shadow_progress_ratio, ttc_candidates)
 from sbs824.wang_safety import solve_wang_braking_qp, wang_pair_barrier
 
 
@@ -56,10 +62,10 @@ class SyncEventV2Test(unittest.TestCase):
         evidence = np.array([True, True, False])
 
         trigger_a = ttc_candidates(
-            state, base, messages, self.cfg, SYNC_EVENT_V2_DEV)
+            state, base, messages, self.cfg, SYNC_EVENT_V2)
         feature_a = build_local_features(
             state, goals, base, messages, mode, evidence,
-            self.cfg, SYNC_EVENT_V2_DEV)
+            self.cfg, SYNC_EVENT_V2)
         changed_state = state.copy()
         changed_goals = goals.copy()
         changed_base = base.copy()
@@ -70,11 +76,11 @@ class SyncEventV2Test(unittest.TestCase):
         changed_messages[2] = [0.5, -0.5]
         trigger_b = ttc_candidates(
             changed_state, changed_base, changed_messages,
-            self.cfg, SYNC_EVENT_V2_DEV)
+            self.cfg, SYNC_EVENT_V2)
         feature_b = build_local_features(
             changed_state, changed_goals, changed_base, changed_messages,
             mode, np.array([True, True, True]), self.cfg,
-            SYNC_EVENT_V2_DEV)
+            SYNC_EVENT_V2)
         self.assertEqual(trigger_a.evidence[0], trigger_b.evidence[0])
         np.testing.assert_allclose(
             feature_a.self_features[0], feature_b.self_features[0])
@@ -96,11 +102,11 @@ class SyncEventV2Test(unittest.TestCase):
         first = build_local_features(
             state, goals, base, messages,
             np.array([IntentMode.BYPASS] * 3), evidence,
-            self.cfg, SYNC_EVENT_V2_DEV)
+            self.cfg, SYNC_EVENT_V2)
         second = build_local_features(
             state, goals, base, messages,
             np.array([IntentMode.BYPASS, IntentMode.ACTIVE, IntentMode.RELEASE]),
-            evidence, self.cfg, SYNC_EVENT_V2_DEV)
+            evidence, self.cfg, SYNC_EVENT_V2)
         # Ego 0 may know its own mode only; neighbor 1's mode cannot alter edge 0->1.
         np.testing.assert_allclose(first.edge_features[0], second.edge_features[0])
 
@@ -112,10 +118,10 @@ class SyncEventV2Test(unittest.TestCase):
         ])
         goals = np.array([[2.0, 1.0], [0.0, 1.0], [3.8, 3.8]])
         runtime = initialize_runtime(
-            state, goals, self.gain, self.cfg, SYNC_EVENT_V2_DEV)
+            state, goals, self.gain, self.cfg, SYNC_EVENT_V2)
         proposal = np.array([[0.3, 0.8], [0.2, 0.7], [-1.0, -1.0]])
         _, trace = step_runtime(
-            runtime, goals, self.gain, self.cfg, SYNC_EVENT_V2_DEV,
+            runtime, goals, self.gain, self.cfg, SYNC_EVENT_V2,
             proposal)
         np.testing.assert_array_equal(trace.optimized_mask, trace.label_mask)
         np.testing.assert_array_equal(trace.label_mask, trace.applied_mask)
@@ -123,19 +129,67 @@ class SyncEventV2Test(unittest.TestCase):
         self.assertTrue(trace.applied_mask[1])
         self.assertFalse(trace.applied_mask[2])
 
-    def test_development_protocol_refuses_formal_dataset(self):
+    def test_frozen_manifest_is_written_and_mismatch_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaisesRegex(RuntimeError, "not frozen"):
+            output = Path(directory) / "formal"
+            DecisionDataset().save(
+                output, SYNC_EVENT_V2,
+                teacher_tier="authoritative_v2")
+            manifest = json.loads(
+                (output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["protocol"], SYNC_EVENT_V2.manifest())
+            SYNC_EVENT_V2.assert_manifest_matches(manifest["protocol"])
+            altered = dict(manifest["protocol"])
+            altered["control_dt"] = 0.21
+            with self.assertRaisesRegex(RuntimeError, "control_dt"):
+                SYNC_EVENT_V2.assert_manifest_matches(altered)
+
+    def test_development_protocol_refuses_formal_dataset(self):
+        development = replace(
+            SYNC_EVENT_V2, version="sync_event_v2_dev", development=True)
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(RuntimeError, "development protocol"):
                 DecisionDataset().save(
-                    Path(directory) / "formal", SYNC_EVENT_V2_DEV)
+                    Path(directory) / "formal", development,
+                    teacher_tier="authoritative_v2")
+
+    def test_formal_dataset_rejects_debug_teacher(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(RuntimeError, "authoritative_v2"):
+                DecisionDataset().save(
+                    Path(directory) / "formal", SYNC_EVENT_V2,
+                    teacher_tier="debug_quick_non_authoritative")
+
+    def test_shadow_candidate_uses_all_sensed_neighbors(self):
+        cfg = make_v2_config(n_agents=3, n_obstacles=0)
+        state = np.array([
+            [1.00, 1.00, 0.0, 0.0],
+            [1.25, 1.00, 0.0, 0.0],
+            [1.45, 1.00, 0.0, 0.0],
+        ])
+        reference = np.array([
+            [0.2, 0.0], [-0.2, 0.0], [0.0, 0.1],
+        ])
+        candidates = TriggerResult(
+            evidence=np.array([True, True, False]),
+            edges=((0, 1),), components=((0, 1),))
+        with patch(
+                "sbs824.v2.trigger.shadow_progress_ratio",
+                return_value=0.5) as ratio:
+            result = local_shadow_ratios(
+                state, reference, candidates, cfg, horizon_steps=2)
+        self.assertEqual(ratio.call_count, 2)
+        self.assertTrue(all(call.args[1].shape == (3, 4)
+                            for call in ratio.call_args_list))
+        np.testing.assert_allclose(result, [0.5, 0.5, 1.0])
 
     def test_internal_sampled_margin_preserves_public_hard_line(self):
         self.assertAlmostEqual(
             self.cfg.wang_pair_safe_radius_factor * self.cfg.car_radius,
             0.2025)
-        self.assertAlmostEqual(SYNC_EVENT_V2_DEV.hard_center_distance, 0.20)
+        self.assertAlmostEqual(SYNC_EVENT_V2.hard_center_distance, 0.20)
         self.assertEqual(self.cfg.wang_safety_substeps, 32)
-        self.assertEqual(SYNC_EVENT_V2_DEV.integration_substeps, 32)
+        self.assertEqual(SYNC_EVENT_V2.integration_substeps, 32)
         self.assertEqual(TeacherBudget().planning_integration_substeps, 32)
 
     def test_runtime_solves_safety_qp_once_per_control_tick(self):
@@ -145,9 +199,9 @@ class SyncEventV2Test(unittest.TestCase):
                           [1.4, 1.0, -0.2, 0.0]])
         goals = np.array([[2.0, 1.0], [0.0, 1.0]])
         runtime = initialize_runtime(
-            state, goals, gain, cfg, SYNC_EVENT_V2_DEV)
+            state, goals, gain, cfg, SYNC_EVENT_V2)
         _, trace = step_runtime(
-            runtime, goals, gain, cfg, SYNC_EVENT_V2_DEV,
+            runtime, goals, gain, cfg, SYNC_EVENT_V2,
             np.tile([1.0, 0.0], (2, 1)))
         self.assertEqual(trace.safety_qp_solves, 1)
 
@@ -173,13 +227,13 @@ class SyncEventV2Test(unittest.TestCase):
 
         result = sampled_wang_step(
             state, np.zeros((2, 2)), [], cfg, np.ones(2, dtype=bool),
-            integration_substeps=SYNC_EVENT_V2_DEV.integration_substeps)
+            integration_substeps=SYNC_EVENT_V2.integration_substeps)
 
         self.assertEqual(result.certified_brake_agents, (0, 1))
         self.assertEqual(result.out_of_certificate_pair_samples, 0)
         self.assertGreaterEqual(
             result.minimum_center_distance,
-            SYNC_EVENT_V2_DEV.hard_center_distance)
+            SYNC_EVENT_V2.hard_center_distance)
         np.testing.assert_allclose(
             result.next_state[:, 2:], np.zeros((2, 2)), atol=1e-12)
         self.assertGreaterEqual(
@@ -225,13 +279,13 @@ class SyncEventV2Test(unittest.TestCase):
                           [1.4, 1.0, 0.0, 0.0]])
         goals = np.array([[2.0, 1.0], [0.0, 1.0]])
         runtime = initialize_runtime(
-            state, goals, gain, cfg, SYNC_EVENT_V2_DEV)
+            state, goals, gain, cfg, SYNC_EVENT_V2)
         prepared = prepare_step(
-            runtime, goals, gain, cfg, SYNC_EVENT_V2_DEV)
+            runtime, goals, gain, cfg, SYNC_EVENT_V2)
         budget = TeacherBudget(horizon_steps=4,
                                planning_integration_substeps=4)
         teacher = ComponentCEMTeacher(
-            SYNC_EVENT_V2_DEV, budget=budget, seed=1)
+            SYNC_EVENT_V2, budget=budget, seed=1)
         candidates = np.asarray([
             [[0.3, 0.7], [0.3, 0.7]],
             [[-0.1, -0.8], [-0.1, -0.8]],
@@ -250,12 +304,12 @@ class SyncEventV2Test(unittest.TestCase):
             sense_radius=cfg.sense_radius, max_force=cfg.max_force,
             max_speed=cfg.max_speed,
             safe_distance=cfg.wang_pair_safe_radius_factor * cfg.car_radius,
-            hard_distance=SYNC_EVENT_V2_DEV.hard_center_distance,
+            hard_distance=SYNC_EVENT_V2.hard_center_distance,
             wang_gamma=cfg.wang_gamma,
-            lateral_speed=SYNC_EVENT_V2_DEV.lateral_speed,
-            max_intent_accel=SYNC_EVENT_V2_DEV.max_intent_accel,
-            intent_lookahead=SYNC_EVENT_V2_DEV.intent_lookahead,
-            action_smooth_weight=SYNC_EVENT_V2_DEV.action_smooth_weight)
+            lateral_speed=SYNC_EVENT_V2.lateral_speed,
+            max_intent_accel=SYNC_EVENT_V2.max_intent_accel,
+            intent_lookahead=SYNC_EVENT_V2.intent_lookahead,
+            action_smooth_weight=SYNC_EVENT_V2.action_smooth_weight)
         ids = np.flatnonzero(active)
         expected = np.asarray([
             teacher._rollout_cost(
@@ -266,6 +320,39 @@ class SyncEventV2Test(unittest.TestCase):
         np.testing.assert_allclose(np.asarray(actual), expected,
                                    atol=2e-2, rtol=2e-4)
 
+    def test_teacher_exact_jax_evaluator_matches_numpy_at_32_substeps(self):
+        from sbs824.v2.teacher import TeacherBudget
+
+        cfg = make_v2_config(n_agents=2, n_obstacles=0)
+        gain = _dare_gain(cfg.dt, cfg.mass)
+        state = np.array([[1.0, 1.0, 0.0, 0.0],
+                          [1.4, 1.0, 0.0, 0.0]])
+        goals = np.array([[2.0, 1.0], [0.0, 1.0]])
+        runtime = initialize_runtime(
+            state, goals, gain, cfg, SYNC_EVENT_V2)
+        prepared = prepare_step(
+            runtime, goals, gain, cfg, SYNC_EVENT_V2)
+        teacher = ComponentCEMTeacher(
+            SYNC_EVENT_V2,
+            budget=TeacherBudget(horizon_steps=4), seed=1)
+        candidates = np.asarray([
+            [[0.3, 0.7], [0.3, 0.7]],
+            [[-0.1, -0.8], [-0.1, -0.8]],
+        ])
+        active_ids = np.flatnonzero(prepared.mode == IntentMode.ACTIVE)
+        release_ids = np.flatnonzero(prepared.mode == IntentMode.RELEASE)
+        actual = teacher.evaluate_candidates_exact_jax(
+            runtime, goals, gain, cfg, candidates, active_ids, release_ids,
+            active_ids)
+        expected = np.asarray([
+            teacher._rollout_cost(
+                runtime, goals, gain, cfg, candidate, active_ids,
+                release_ids, active_ids,
+                integration_substeps=SYNC_EVENT_V2.integration_substeps)
+            for candidate in candidates
+        ])
+        np.testing.assert_allclose(actual, expected, atol=2e-2, rtol=2e-4)
+
     def test_teacher_reuse_runs_no_hidden_objective_rollout(self):
         cfg = make_v2_config(n_agents=2, n_obstacles=0)
         state = np.array([[1.0, 1.0, 0.0, 0.0],
@@ -273,9 +360,9 @@ class SyncEventV2Test(unittest.TestCase):
         goals = np.array([[2.0, 1.0], [0.0, 1.0]])
         gain = _dare_gain(cfg.dt, cfg.mass)
         runtime = initialize_runtime(
-            state, goals, gain, cfg, SYNC_EVENT_V2_DEV)
+            state, goals, gain, cfg, SYNC_EVENT_V2)
         prepared = prepare_step(
-            runtime, goals, gain, cfg, SYNC_EVENT_V2_DEV)
+            runtime, goals, gain, cfg, SYNC_EVENT_V2)
 
         class CheapTeacher(ComponentCEMTeacher):
             def _rollout_cost(self, runtime, goals, gain, cfg, parameters,
@@ -284,7 +371,9 @@ class SyncEventV2Test(unittest.TestCase):
                 target = np.array([0.25, 0.75])
                 return float(np.sum((parameters[focus_ids] - target) ** 2))
 
-        teacher = CheapTeacher(SYNC_EVENT_V2_DEV, seed=10)
+        teacher = CheapTeacher(
+            SYNC_EVENT_V2,
+            budget=TeacherBudget(candidate_backend="numpy"), seed=10)
         first = teacher.decide(runtime, prepared, goals, gain, cfg)
         after_search = teacher.objective_rollouts
         second = teacher.decide(runtime, prepared, goals, gain, cfg)
@@ -294,6 +383,98 @@ class SyncEventV2Test(unittest.TestCase):
         np.testing.assert_allclose(
             second.parameters[prepared.refresh_mask],
             first.parameters[prepared.refresh_mask])
+
+    def test_teacher_branch_tie_uses_recovered_improvement_scale(self):
+        self.assertTrue(ComponentCEMTeacher._branch_costs_near_tie(
+            1000.0, 10.0, 15.0, 0.01))
+        self.assertFalse(ComponentCEMTeacher._branch_costs_near_tie(
+            1000.0, 10.0, 30.0, 0.01))
+        self.assertFalse(ComponentCEMTeacher._branch_costs_near_tie(
+            10.0, 10.0, 10.02, 0.01))
+
+    def test_teacher_budget_uses_nontrivial_exact_shortlist(self):
+        budget = TeacherBudget()
+        self.assertGreaterEqual(budget.exact_shortlist_size, 16)
+        self.assertEqual(budget.jax_evaluation_batch_size, 256)
+        self.assertEqual(
+            budget.planning_integration_substeps,
+            SYNC_EVENT_V2.integration_substeps)
+
+    def test_authoritative_teacher_budget_rejects_saving_shortcuts(self):
+        with self.assertRaises(ValueError):
+            AuthoritativeTeacherBudget(samples=4095)
+        with self.assertRaises(ValueError):
+            AuthoritativeTeacherBudget(iterations=2)
+        with self.assertRaises(ValueError):
+            AuthoritativeTeacherBudget(restarts=1)
+        with self.assertRaises(ValueError):
+            AuthoritativeTeacherBudget(horizon_steps=39)
+        budget = AuthoritativeTeacherBudget()
+        self.assertEqual(budget.restarts, 4)
+        internal = budget.search_budget(SYNC_EVENT_V2)
+        self.assertEqual(internal.strong_samples, 4096)
+        self.assertEqual(internal.light_samples, internal.strong_samples)
+        self.assertEqual(internal.light_iterations,
+                         internal.strong_iterations)
+        self.assertEqual(internal.planning_integration_substeps,
+                         SYNC_EVENT_V2.integration_substeps)
+        self.assertEqual(internal.candidate_backend, "jax_x64")
+        self.assertEqual(AuthoritativeComponentTeacher.tier,
+                         "authoritative_v2")
+
+    def test_authoritative_teacher_uses_four_fresh_restarts_every_tick(self):
+        cfg = make_v2_config(n_agents=2, n_obstacles=0)
+        state = np.array([[1.0, 1.0, 0.0, 0.0],
+                          [1.4, 1.0, 0.0, 0.0]])
+        goals = np.array([[2.0, 1.0], [0.0, 1.0]])
+        gain = _dare_gain(cfg.dt, cfg.mass)
+        runtime = initialize_runtime(
+            state, goals, gain, cfg, SYNC_EVENT_V2)
+        prepared = prepare_step(
+            runtime, goals, gain, cfg, SYNC_EVENT_V2)
+        self.assertTrue(prepared.refresh_mask.all())
+
+        calls = {"value": 0}
+
+        def fake_decide(_core, runtime, prepared, *_args, **_kwargs):
+            parameters = runtime.parameters.copy()
+            parameters[prepared.refresh_mask] = (
+                [0.8, 0.5] if calls["value"] % 2 == 0
+                else [0.9, 0.1])
+            calls["value"] += 1
+            source = np.full(cfg.n_agents, "strong", dtype="U8")
+            finite = np.full(cfg.n_agents, 10.0)
+            return TeacherDecision(
+                parameters=parameters, source=source,
+                teacher_cost=finite.copy(), incumbent_cost=finite.copy(),
+                validated=prepared.refresh_mask.copy(),
+                component_id=np.zeros(cfg.n_agents, dtype=np.int32),
+                positive_branch_cost=finite.copy(),
+                negative_branch_cost=finite.copy(),
+                branch_near_tie=np.zeros(cfg.n_agents, dtype=bool))
+
+        with (patch.object(
+                ComponentCEMTeacher, "decide", autospec=True,
+                side_effect=fake_decide) as decide_mock,
+              patch.object(
+                ComponentCEMTeacher, "evaluate_candidates_exact_jax",
+                autospec=True,
+                return_value=np.array([10.0, 20.0])) as exact_mock):
+            teacher = AuthoritativeComponentTeacher(
+                SYNC_EVENT_V2, seed=7)
+            first = teacher.decide(runtime, prepared, goals, gain, cfg)
+            self.assertEqual(decide_mock.call_count, 4)
+            self.assertEqual(exact_mock.call_count, 4)
+            self.assertTrue(np.all(
+                first.source[prepared.refresh_mask] == "auth"))
+            np.testing.assert_allclose(
+                first.parameters[prepared.refresh_mask],
+                np.tile([0.9, 0.1], (2, 1)))
+            self.assertEqual(teacher.statistics()[
+                "admissible_restart_counts"], [4])
+            teacher.decide(runtime, prepared, goals, gain, cfg)
+            self.assertEqual(decide_mock.call_count, 8)
+            self.assertEqual(exact_mock.call_count, 8)
 
     def test_teacher_splits_disconnected_active_components(self):
         cfg = make_v2_config(n_agents=4, n_obstacles=0)
@@ -306,9 +487,9 @@ class SyncEventV2Test(unittest.TestCase):
         ])
         gain = _dare_gain(cfg.dt, cfg.mass)
         runtime = initialize_runtime(
-            state, goals, gain, cfg, SYNC_EVENT_V2_DEV)
+            state, goals, gain, cfg, SYNC_EVENT_V2)
         prepared = prepare_step(
-            runtime, goals, gain, cfg, SYNC_EVENT_V2_DEV)
+            runtime, goals, gain, cfg, SYNC_EVENT_V2)
 
         class CheapTeacher(ComponentCEMTeacher):
             def _rollout_cost(self, runtime, goals, gain, cfg, parameters,
@@ -316,7 +497,9 @@ class SyncEventV2Test(unittest.TestCase):
                 self.objective_rollouts += 1
                 return float(np.sum(parameters[focus_ids] ** 2))
 
-        teacher = CheapTeacher(SYNC_EVENT_V2_DEV, seed=11)
+        teacher = CheapTeacher(
+            SYNC_EVENT_V2,
+            budget=TeacherBudget(candidate_backend="numpy"), seed=11)
         decision = teacher.decide(runtime, prepared, goals, gain, cfg)
         self.assertEqual(len(teacher.caches), 2)
         self.assertEqual({cache.members for cache in teacher.caches},

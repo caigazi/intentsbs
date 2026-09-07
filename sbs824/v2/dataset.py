@@ -55,9 +55,13 @@ class DecisionDataset:
         self.incumbent_cost.append(float(incumbent_cost))
         self.validated.append(bool(validated))
 
-    def save(self, directory: Path, protocol: SyncEventProtocol,
+    def save(self, directory: Path, protocol: SyncEventProtocol, *,
+             teacher_tier: str,
              extra_manifest: dict | None = None) -> None:
         protocol.assert_data_ready()
+        if teacher_tier != "authoritative_v2":
+            raise RuntimeError(
+                "formal datasets require teacher_tier=authoritative_v2")
         directory.mkdir(parents=True, exist_ok=False)
         arrays = {
             name: np.asarray(value) for name, value in vars(self).items()
@@ -67,6 +71,7 @@ class DecisionDataset:
         np.savez_compressed(directory / "decisions.npz", **arrays)
         manifest = {
             "protocol": protocol.manifest(),
+            "teacher_tier": teacher_tier,
             "records": len(self.labels),
             "fields": sorted(vars(self)),
         }

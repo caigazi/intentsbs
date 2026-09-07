@@ -1,0 +1,112 @@
+{
+  "version": "small_dagger_v1",
+  "development_only": true,
+  "maximum_rounds": 3,
+  "rollout_horizon": 32,
+  "maximum_selected_states_per_scene": 4,
+  "teacher_tier": "authoritative_v2",
+  "student": {
+    "architecture": "IntentStudent(edge_hidden=64,value_hidden=64,output_hidden=64)",
+    "objective": "logit_space_mse",
+    "retrain_from_scratch_each_round": true,
+    "development_gradient_steps": 6000,
+    "seed": 824
+  },
+  "seed_dataset_reports": [
+    "artifacts/raw/gate1_simplefresh_n2_20260904_v3/REPORT.json",
+    "artifacts/raw/gate1_simplefresh_n5_20260904_v3/REPORT.json",
+    "artifacts/raw/gate1_simplefresh_n8_20260904_v3/REPORT.json"
+  ],
+  "fixed_validation": {
+    "enters_training": false,
+    "scene_specs": [
+      "2:8600",
+      "3:8601",
+      "4:8602",
+      "5:8603",
+      "6:8604",
+      "7:8605",
+      "8:8700",
+      "8:8701",
+      "8:8702",
+      "8:8703",
+      "8:8704",
+      "8:8705",
+      "8:8706",
+      "8:8707",
+      "8:8708",
+      "8:8709"
+    ]
+  },
+  "training_rollouts": {
+    "main_anchor": "N=8",
+    "environments_per_round": 16,
+    "n8_environments_per_round": 10,
+    "n8_scene_fraction": 0.625,
+    "round_scene_specs": {
+      "1": [
+        "2:8800",
+        "3:8801",
+        "4:8802",
+        "5:8803",
+        "6:8804",
+        "7:8805",
+        "8:8900",
+        "8:8901",
+        "8:8902",
+        "8:8903",
+        "8:8904",
+        "8:8905",
+        "8:8906",
+        "8:8907",
+        "8:8908",
+        "8:8909"
+      ],
+      "2": [
+        "2:9000",
+        "3:9001",
+        "4:9002",
+        "5:9003",
+        "6:9004",
+        "7:9005",
+        "8:9100",
+        "8:9101",
+        "8:9102",
+        "8:9103",
+        "8:9104",
+        "8:9105",
+        "8:9106",
+        "8:9107",
+        "8:9108",
+        "8:9109"
+      ],
+      "3": [
+        "2:9200",
+        "3:9201",
+        "4:9202",
+        "5:9203",
+        "6:9204",
+        "7:9205",
+        "8:9300",
+        "8:9301",
+        "8:9302",
+        "8:9303",
+        "8:9304",
+        "8:9305",
+        "8:9306",
+        "8:9307",
+        "8:9308",
+        "8:9309"
+      ]
+    }
+  },
+  "round_metrics": [
+    "success_rate",
+    "n8_success_rate",
+    "sbs_agent_seconds",
+    "minimum_center_distance",
+    "certificate_violation_samples",
+    "completion_steps"
+  ],
+  "stop_rule": "Stop after round 3. Escalate method design only if fixed-validation aggregate performance does not improve without cross-N regression."
+}
